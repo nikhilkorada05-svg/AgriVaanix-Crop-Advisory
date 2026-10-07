@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AgriVaanix crop advisory API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: farm
+  - name: conversations
+  - name: advisory
+  - name: preferences
+  - name: dashboard
+security:
+  - ClerkSession: []
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +29,322 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/sync:
+    post:
+      operationId: syncProfile
+      tags: [farm]
+      summary: Create or update the signed-in farmer profile
+      responses:
+        "200":
+          description: Profile synchronized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerProfile"
+  /farm-profile:
+    get:
+      operationId: getFarmProfile
+      tags: [farm]
+      summary: Get the current farmer's farm profile
+      responses:
+        "200":
+          description: Farm profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmProfile"
+    put:
+      operationId: updateFarmProfile
+      tags: [farm]
+      summary: Save the current farmer's farm profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FarmProfileInput"
+      responses:
+        "200":
+          description: Saved farm profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmProfile"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get advisory activity and profile summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: List the current farmer's conversations
+      responses:
+        "200":
+          description: Conversation list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+    post:
+      operationId: createConversation
+      tags: [conversations]
+      summary: Start an advisory conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: getConversationMessages
+      tags: [conversations]
+      summary: Load messages from an owned conversation
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Conversation messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationMessage"
+  /conversations/{conversationId}:
+    delete:
+      operationId: deleteConversation
+      tags: [conversations]
+      summary: Delete an owned conversation and its messages
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+  /ai/advisory:
+    post:
+      operationId: createAdvisory
+      tags: [advisory]
+      summary: Generate and save contextual multilingual crop advice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdvisoryInput"
+      responses:
+        "200":
+          description: Structured agricultural advice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisoryResponse"
+  /preferences:
+    get:
+      operationId: getPreferences
+      tags: [preferences]
+      summary: Get user speech and language preferences
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+    put:
+      operationId: updatePreferences
+      tags: [preferences]
+      summary: Update user speech and language preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesInput"
+      responses:
+        "200":
+          description: Saved preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
 components:
+  securitySchemes:
+    ClerkSession:
+      type: apiKey
+      in: cookie
+      name: __session
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    SoilType:
+      type: string
+      enum: [clay, sandy, loam, black, red, alluvial, other]
+    IrrigationSource:
+      type: string
+      enum: [borewell, canal, rainfed, drip, sprinkler]
+    AdvisoryDomain:
+      type: string
+      enum:
+        - CROP_SELECTION
+        - PEST_DISEASE_DIAGNOSIS
+        - WEATHER_IRRIGATION
+        - SOIL_FERTILIZER
+        - MARKET_PRICES
+        - GOVT_SCHEMES
+        - GENERAL_AGRI
+        - LANGUAGE_SWITCH
+        - UNSUPPORTED
+    FarmerProfile:
+      type: object
+      required: [id, name, email, preferredLanguage]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        preferredLanguage: { type: string }
+    FarmProfile:
+      type: object
+      required: [farmLocation, landSizeAcres, soilType, primaryCrops, irrigationSource, updatedAt]
+      properties:
+        farmLocation: { type: string }
+        landSizeAcres: { type: number }
+        soilType: { $ref: "#/components/schemas/SoilType" }
+        primaryCrops:
+          type: array
+          items: { type: string }
+        irrigationSource: { $ref: "#/components/schemas/IrrigationSource" }
+        updatedAt: { type: string, format: date-time }
+    FarmProfileInput:
+      type: object
+      required: [farmLocation, landSizeAcres, soilType, primaryCrops, irrigationSource]
+      properties:
+        farmLocation: { type: string, minLength: 2, maxLength: 255 }
+        landSizeAcres: { type: number, exclusiveMinimum: 0, maximum: 99999 }
+        soilType: { $ref: "#/components/schemas/SoilType" }
+        primaryCrops:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 80 }
+        irrigationSource: { $ref: "#/components/schemas/IrrigationSource" }
+    Conversation:
+      type: object
+      required: [id, title, activeLanguage, createdAt, updatedAt, messageCount]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        activeLanguage: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messageCount: { type: integer }
+        lastMessage: { type: ["string", "null"] }
+    ConversationInput:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        activeLanguage: { type: string, maxLength: 35 }
+    ConversationMessage:
+      type: object
+      required: [id, sender, content, detectedLanguage, languageCode, domainCategory, confidence, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        sender: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        detectedLanguage: { type: string }
+        languageCode: { type: string }
+        domainCategory: { $ref: "#/components/schemas/AdvisoryDomain" }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        actionSteps:
+          type: array
+          items: { type: string }
+        safetyWarning: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    AdvisoryInput:
+      type: object
+      required: [conversationId, query, activeLanguageCode]
+      properties:
+        conversationId: { type: string, format: uuid }
+        query: { type: string, minLength: 1, maxLength: 4000 }
+        activeLanguageCode: { type: string, maxLength: 35 }
+    AdvisoryResponse:
+      type: object
+      required: [advisoryResponse, detectedLanguage, languageCode, requestedLanguage, domainCategory, confidence, actionSteps, safetyWarning]
+      properties:
+        advisoryResponse: { type: string }
+        detectedLanguage: { type: string }
+        languageCode: { type: string }
+        requestedLanguage: { type: string }
+        domainCategory: { $ref: "#/components/schemas/AdvisoryDomain" }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        actionSteps:
+          type: array
+          items: { type: string }
+        safetyWarning: { type: string }
+        userMessage: { $ref: "#/components/schemas/ConversationMessage" }
+        assistantMessage: { $ref: "#/components/schemas/ConversationMessage" }
+    UserPreferences:
+      type: object
+      required: [preferredLanguage, speechRate, autoPlayTts, preferredVoice]
+      properties:
+        preferredLanguage: { type: string }
+        speechRate: { type: number, minimum: 0.5, maximum: 2 }
+        autoPlayTts: { type: boolean }
+        preferredVoice: { type: string }
+    PreferencesInput:
+      type: object
+      required: [preferredLanguage, speechRate, autoPlayTts, preferredVoice]
+      properties:
+        preferredLanguage: { type: string, maxLength: 35 }
+        speechRate: { type: number, minimum: 0.5, maximum: 2 }
+        autoPlayTts: { type: boolean }
+        preferredVoice: { type: string, maxLength: 100 }
+    DashboardSummary:
+      type: object
+      required: [conversationCount, adviceCount, profileComplete, recentConversations, recentDomains]
+      properties:
+        conversationCount: { type: integer }
+        adviceCount: { type: integer }
+        profileComplete: { type: boolean }
+        recentConversations:
+          type: array
+          items: { $ref: "#/components/schemas/Conversation" }
+        recentDomains:
+          type: array
+          items:
+            type: object
+            required: [domain, count]
+            properties:
+              domain: { $ref: "#/components/schemas/AdvisoryDomain" }
+              count: { type: integer }

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "AgriVaanix"
+description = "A multilingual crop advisory assistant for farmers with voice and text guidance, farm profiles, saved consultations, and Gemini-powered agricultural recommendations."
+version = "1.0.0"
+id = "artifacts/agrivaanix"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25689
+
+[services.development]
+run = "pnpm --filter @workspace/agrivaanix run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/agrivaanix", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/agrivaanix/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25689"
+BASE_PATH = "/"
